@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>Network graph</title>
+</head>
+
+<body>
+<svg width="1600" height="900"></svg>
+<script src="https://d3js.org/d3.v4.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.2/mqttws31.min.js"></script>
+<script>
+
+var mqtt;
+var reconnectTimeout = 2000;
+
+var host = "iot.eclipse.org";
+var topic = "netgraph/";
+var port = 80;
+var path = "/ws";
+var useTLS = false;
+var username = null;
+var password = null;
+var cleansession = true;
+
+function MQTTconnect() {
+	mqtt = new Paho.MQTT.Client(
+			host,
+			port,
+			path,
+			"web_" + parseInt(Math.random() * 100, 10)
+	);
+
+	var options = {
+		timeout: 3,
+		useSSL: useTLS,
+		cleanSession: cleansession,
+		onSuccess: onConnect,
+		onFailure: onFailure,
+	};
+
+	mqtt.onConnectionLost = onConnectionLost;
+	mqtt.onMessageArrived = onMessageArrived;
+	mqtt.connect(options);
+}
+
+function onConnect() {
+	mqtt.subscribe(topic, {qos: 0});
+}
+
+function onConnectionLost(response) {
+	setTimeout(MQTTconnect, reconnectTimeout);
+};
+
+function onFailure(message) {
+	setTimeout(MQTTconnect, reconnectTimeout);
+}
+
+function onMessageArrived(message) {
+	var topic = message.destinationName;
+	var payload = JSON.parse(message.payloadString);
+
+    var node_found = false;
+    for(var i in nodes)
+    {
+        if( nodes[i].id === payload.id )
+        {
+            node_found = true;
+            break;
+        }
+    }
+
+    if( node_found == false )
+    {
+        nodes.push(payload);
+    }
+    else
+    {
+        /* Bug lorsque l'on modifie les voisins */
+        for(var l in links)
+        {
+            if( links[l].source.id === payload.id )
+            {
+                links.splice(l, 1);
+            }
+        }
+    }
+
+    for(var n in payload.neighbors)
+    {
+        for(var i in nodes)
+        {
+            if( nodes[i].id === payload.neighbors[n] )
+            {
+                links.push({source: payload, target: nodes[i]});
+                break;
+            }
+        }
+    }
+    restart();
+};
+
+MQTTconnect();
+
+var svg = d3.select("svg"),
+    width = svg.attr("width"),
+    height = svg.attr("height"),
+    color = d3.scaleOrdinal(d3.schemeCategory10);
+
+    nodes = [],
+    links = [];
+
+var simulation = d3.forceSimulation(nodes)
+    .force("charge", d3.forceManyBody().strength(-1000))
+    .force("link", d3.forceLink(links).distance(200))
+    .force("x", d3.forceX())
+    .force("y", d3.forceY())
+    .alphaTarget(1)
+    .on("tick", ticked);
+
+var g = svg.append("g").attr("transform", "translate(" + width / 2 + "," + height / 2 + ")"),
+    link = g.append("g").attr("stroke", "#000").attr("stroke-width", 1.5).selectAll(".link"),
+    node = g.append("g").attr("stroke", "#fff").attr("stroke-width", 1.5).selectAll(".node");
+    label = g.append("g").selectAll(".label");
+
+restart();
+
+function restart()
+{
+  node = node.data(nodes, function(d) { return d.id;});
+  node.exit().remove();
+  node = node.enter().append("circle").attr("fill", function(d) { return color(d.id); }).attr("r", 10).merge(node);
+
+  label = label.data(nodes, function(d) { return d.id;});
+  label.exit().remove();
+  label = label.enter().append("text").text(function(d) { return d.id; }).style("font-size", "20px").attr("dy", "-15px").attr("text-anchor", "middle").merge(label);
+
+  link = link.data(links, function(d) { return d.source.id + "-" + d.target.id; });
+  link.exit().remove();
+  link = link.enter().append("line").attr("stroke-width", 5).merge(link);
+
+  simulation.nodes(nodes, label);
+  simulation.force("link").links(links);
+  simulation.alpha(1).restart();
+}
+
+function ticked() {
+  label.attr("transform", function(d) { return "translate(" + d.x + "," + d.y + ")"; });
+
+  node.attr("cx", function(d) { return d.x; })
+      .attr("cy", function(d) { return d.y; })
+
+  link.attr("x1", function(d) { return d.source.x; })
+      .attr("y1", function(d) { return d.source.y; })
+      .attr("x2", function(d) { return d.target.x; })
+      .attr("y2", function(d) { return d.target.y; });
+}
+
+</script>
+</body>
+</html>
