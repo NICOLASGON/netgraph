@@ -1,6 +1,6 @@
 // set up SVG for D3
-const width = 960;
-const height = 500;
+const width = 1600;
+const height = 900;
 const colors = d3.scaleOrdinal(d3.schemeCategory10);
 
 const svg = d3.select('body')
@@ -13,16 +13,9 @@ const svg = d3.select('body')
 //  - nodes are known by 'id', not by index in array.
 //  - reflexive edges are indicated on the node (as a bold black circle).
 //  - links are always source < target; edge directions are set by 'left' and 'right'.
-const nodes = [
-  { id: 0, reflexive: false },
-  { id: 1, reflexive: true },
-  { id: 2, reflexive: false }
-];
+const nodes = [];
 let lastNodeId = 2;
-const links = [
-  { source: nodes[0], target: nodes[1], left: false, right: true },
-  { source: nodes[1], target: nodes[2], left: false, right: true }
-];
+const links = [];
 
 // init D3 force layout
 const force = d3.forceSimulation()
@@ -235,7 +228,7 @@ function restart() {
   // show node IDs
   g.append('svg:text')
     .attr('x', 0)
-    .attr('y', 4)
+    .attr('y', -20)
     .attr('class', 'id')
     .text((d) => d.id);
 
@@ -401,7 +394,6 @@ function onFailure(message) {
 }
 
 function onMessageArrived(message) {
-  console.log("New MQTT message");
   const topic = message.destinationName;
   const payload = JSON.parse(message.payloadString);
   console.log(payload);
